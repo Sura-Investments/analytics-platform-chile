@@ -7,9 +7,14 @@ import pandas as pd
 import os
 
 def convert_excel_to_parquet():
-    # Rutas de archivos
-    excel_path = r"C:\Users\Gustavo Campos\Documents\Proyectos Python\Proyecto Panel Django\Bases de Datos\IPC_Anual_Mensual.xlsx"
-    parquet_path = r"C:\Users\Gustavo Campos\Documents\Proyectos Python\Proyecto Panel Django\Bases de Datos\ipc_data.parquet"
+    # Rutas de archivos - usar rutas relativas para portabilidad
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    excel_path = os.path.join(base_dir, "Bases de Datos", "IPC_Anual_Mensual.xlsx")
+
+    # Nueva estructura organizada
+    parquet_dir = os.path.join(base_dir, "data", "parquet", "chile")
+    os.makedirs(parquet_dir, exist_ok=True)
+    parquet_path = os.path.join(parquet_dir, "ipc_data.parquet")
     
     print("🔄 Convirtiendo Excel a Parquet...")
     

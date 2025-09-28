@@ -1,6 +1,9 @@
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.generic import TemplateView
+from django.core.cache import cache
+from django.views.decorators.cache import cache_page
+from django.utils.decorators import method_decorator
 from .models import IPCData
 import json
 import pandas as pd
@@ -59,12 +62,21 @@ class IPCDetailView(TemplateView):
         
         return context
 
+@cache_page(300)  # Cache por 5 minutos
 def api_ipc_chart_data(request):
     """
     API para datos del gráfico IPC
     """
     # Obtener parámetros
     limit = request.GET.get('limit', '24')
+
+    # Crear clave de caché única
+    cache_key = f'ipc_chart_data_{limit}'
+
+    # Intentar obtener datos del caché
+    cached_data = cache.get(cache_key)
+    if cached_data:
+        return JsonResponse(cached_data)
     
     if limit == 'all':
         queryset = IPCData.objects.all().order_by('fecha')
@@ -110,15 +122,25 @@ def api_ipc_chart_data(request):
             }
         ]
     }
-    
+
+    # Guardar en caché por 5 minutos
+    cache.set(cache_key, chart_data, 300)
+
     return JsonResponse(chart_data)
 
+@cache_page(600)  # Cache por 10 minutos (datos más estables)
 def api_ipc_summary(request):
     """
     API para resumen de datos IPC
     """
+    # Verificar caché primero
+    cache_key = 'ipc_summary_data'
+    cached_summary = cache.get(cache_key)
+    if cached_summary:
+        return JsonResponse(cached_summary)
+
     queryset = IPCData.objects.all()
-    
+
     if not queryset.exists():
         return JsonResponse({'error': 'No hay datos disponibles'})
     
@@ -149,5 +171,8 @@ def api_ipc_summary(request):
             }
         }
     }
-    
+
+    # Guardar en caché por 10 minutos
+    cache.set(cache_key, summary, 600)
+
     return JsonResponse(summary)

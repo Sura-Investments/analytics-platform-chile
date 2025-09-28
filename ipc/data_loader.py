@@ -9,9 +9,25 @@ class IPCDataLoader:
     """
     Clase para cargar datos desde Parquet a la base de datos
     """
-    
-    def __init__(self):
-        self.parquet_path = settings.PARQUET_FILE_PATH
+
+    def __init__(self, country='chile', data_type='ipc'):
+        """
+        Inicializa el loader con país y tipo de datos específicos
+
+        Args:
+            country (str): País de los datos ('chile', etc.)
+            data_type (str): Tipo de datos ('ipc', etc.)
+        """
+        self.country = country
+        self.data_type = data_type
+
+        # Obtener ruta del archivo Parquet
+        try:
+            self.parquet_path = settings.PARQUET_FILES[country][data_type]
+        except KeyError:
+            # Fallback para compatibilidad
+            self.parquet_path = settings.PARQUET_FILE_PATH
+            logger.warning(f"Using fallback path for {country}/{data_type}")
     
     def load_data(self):
         """
