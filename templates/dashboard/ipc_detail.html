@@ -1,0 +1,339 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}IPC - Índice de Precios al Consumidor{% endblock %}
+
+{% block page_title %}IPC - Índice de Precios al Consumidor{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="section-header">
+            <i class="fas fa-percentage me-2"></i>
+            Índice de Precios al Consumidor (IPC)
+        </h1>
+        <p class="lead text-muted">
+            Variaciones mensuales y anuales de la inflación en Chile
+        </p>
+    </div>
+</div>
+
+<!-- Estadísticas Resumen -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body text-center">
+                <h6 class="text-uppercase">Total Registros</h6>
+                <h2 class="mb-0">{{ total_records|default:0 }}</h2>
+                <small>Períodos disponibles</small>
+            </div>
+        </div>
+    </div>
+    
+    {% if latest_record %}
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body text-center">
+                <h6 class="text-uppercase">Último Período</h6>
+                <h3 class="mb-0">{{ latest_record.periodo }}</h3>
+                <small>Más reciente</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body text-center">
+                <h6 class="text-uppercase">Variación Mensual</h6>
+                <h2 class="mb-0">{{ latest_record.variacion_mensual }}%</h2>
+                <small>{{ latest_record.periodo }}</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body text-center">
+                <h6 class="text-uppercase">Variación Anual</h6>
+                <h2 class="mb-0">{{ latest_record.variacion_anual }}%</h2>
+                <small>{{ latest_record.periodo }}</small>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Controles del Gráfico -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="chart-container">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Evolución del IPC
+                </h5>
+                <div>
+                    <button class="btn btn-outline-primary btn-sm" onclick="loadChart(12)">
+                        Últimos 12 meses
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="loadChart(24)">
+                        Últimos 24 meses
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="loadChart(60)">
+                        Últimos 5 años
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="loadChart('all')">
+                        Todo el período
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Área del gráfico -->
+            <div class="position-relative" style="height: 500px;">
+                <canvas id="ipcChart"></canvas>
+                <div id="chartLoading" class="position-absolute top-50 start-50 translate-middle text-center" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Cargando datos...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas Adicionales -->
+<div class="row mb-4" id="statsContainer" style="display: none;">
+    <div class="col-md-6">
+        <div class="chart-container">
+            <h6 class="mb-3">
+                <i class="fas fa-calculator me-2"></i>
+                Estadísticas Variación Mensual
+            </h6>
+            <div class="row text-center">
+                <div class="col-4">
+                    <h5 class="text-primary mb-0" id="mensualPromedio">--</h5>
+                    <small class="text-muted">Promedio</small>
+                </div>
+                <div class="col-4">
+                    <h5 class="text-success mb-0" id="mensualMaximo">--</h5>
+                    <small class="text-muted">Máximo</small>
+                </div>
+                <div class="col-4">
+                    <h5 class="text-danger mb-0" id="mensualMinimo">--</h5>
+                    <small class="text-muted">Mínimo</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="chart-container">
+            <h6 class="mb-3">
+                <i class="fas fa-calculator me-2"></i>
+                Estadísticas Variación Anual
+            </h6>
+            <div class="row text-center">
+                <div class="col-4">
+                    <h5 class="text-primary mb-0" id="anualPromedio">--</h5>
+                    <small class="text-muted">Promedio</small>
+                </div>
+                <div class="col-4">
+                    <h5 class="text-success mb-0" id="anualMaximo">--</h5>
+                    <small class="text-muted">Máximo</small>
+                </div>
+                <div class="col-4">
+                    <h5 class="text-danger mb-0" id="anualMinimo">--</h5>
+                    <small class="text-muted">Mínimo</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla de datos recientes -->
+<div class="row">
+    <div class="col-12">
+        <div class="chart-container">
+            <h6 class="mb-3">
+                <i class="fas fa-table me-2"></i>
+                Datos Recientes (Últimos 12 meses)
+            </h6>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Período</th>
+                            <th>Fecha</th>
+                            <th class="text-center">Variación Mensual (%)</th>
+                            <th class="text-center">Variación Anual (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in recent_data %}
+                        <tr>
+                            <td><strong>{{ record.periodo }}</strong></td>
+                            <td>{{ record.fecha|date:"d/m/Y" }}</td>
+                            <td class="text-center">
+                                <span class="badge {% if record.variacion_mensual >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ record.variacion_mensual }}%
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge {% if record.variacion_anual >= 0 %}bg-info{% else %}bg-warning{% endif %}">
+                                    {{ record.variacion_anual }}%
+                                </span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">
+                                No hay datos disponibles
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let chart = null;
+
+// Cargar gráfico al inicializar la página
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Página cargada, iniciando gráfico...');
+    loadChart(24); // Cargar últimos 24 meses por defecto
+    loadStats(); // Cargar estadísticas
+});
+
+function loadChart(limit) {
+    console.log('Cargando gráfico con limit:', limit);
+    const loading = document.getElementById('chartLoading');
+    loading.style.display = 'block';
+    
+    // Construir URL correctamente
+    let url = '/api/ipc/chart/';
+    if (limit !== 'all') {
+        url += '?limit=' + limit;
+    }
+    
+    console.log('URL del API:', url);
+    
+    fetch(url)
+        .then(response => {
+            console.log('Respuesta recibida:', response.status);
+            if (!response.ok) {
+                throw new Error('Error HTTP: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Datos recibidos:', data);
+            createChart(data);
+            loading.style.display = 'none';
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            loading.style.display = 'none';
+            
+            // Mostrar error en el gráfico
+            const ctx = document.getElementById('ipcChart').getContext('2d');
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            ctx.font = '16px Arial';
+            ctx.fillStyle = '#dc3545';
+            ctx.textAlign = 'center';
+            ctx.fillText('Error cargando datos: ' + error.message, ctx.canvas.width/2, ctx.canvas.height/2);
+        });
+}
+
+function createChart(data) {
+    console.log('Creando gráfico con datos:', data);
+    const ctx = document.getElementById('ipcChart').getContext('2d');
+    
+    // Destruir gráfico anterior si existe
+    if (chart) {
+        chart.destroy();
+    }
+    
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: data,
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            aspectRatio: 3,  // Ratio ancho:alto = 3:1
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Evolución de las Variaciones del IPC',
+                    font: {
+                        size: 16
+                    }
+                },
+                legend: {
+                    position: 'top',
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    title: {
+                        display: true,
+                        text: 'Variación (%)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Período'
+                    },
+                    ticks: {
+                        maxRotation: 45
+                    }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+    
+    console.log('Gráfico creado exitosamente');
+}
+
+function loadStats() {
+    console.log('Cargando estadísticas...');
+    fetch('/api/ipc/summary/')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error HTTP: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Estadísticas recibidas:', data);
+            if (data.statistics) {
+                // Estadísticas mensuales
+                document.getElementById('mensualPromedio').textContent = data.statistics.mensual.promedio + '%';
+                document.getElementById('mensualMaximo').textContent = data.statistics.mensual.maximo + '%';
+                document.getElementById('mensualMinimo').textContent = data.statistics.mensual.minimo + '%';
+                
+                // Estadísticas anuales
+                document.getElementById('anualPromedio').textContent = data.statistics.anual.promedio + '%';
+                document.getElementById('anualMaximo').textContent = data.statistics.anual.maximo + '%';
+                document.getElementById('anualMinimo').textContent = data.statistics.anual.minimo + '%';
+                
+                document.getElementById('statsContainer').style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading stats:', error);
+        });
+}
+</script>
+{% endblock %}
