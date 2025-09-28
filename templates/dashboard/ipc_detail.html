@@ -301,16 +301,29 @@ function createChart(data) {
             responsive: true,
             maintainAspectRatio: true,
             aspectRatio: 3,
+            backgroundColor: '#ffffff',  // Fondo blanco para el gráfico
             plugins: {
                 title: {
                     display: true,
-                    text: 'Evolución de las Variaciones del IPC',
+                    text: 'Evolución de las Variaciones del IPC - Chile',
                     font: {
-                        size: 16
+                        size: 18,
+                        weight: 'bold'
+                    },
+                    padding: {
+                        top: 10,
+                        bottom: 20
                     }
                 },
                 legend: {
                     position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 20,
+                        font: {
+                            size: 12
+                        }
+                    }
                 }
             },
             scales: {
@@ -391,10 +404,31 @@ function loadStats() {
 // Función para descargar gráfico como PNG
 function downloadChart() {
     if (chart) {
+        // Crear canvas temporal con fondo blanco
+        const originalCanvas = chart.canvas;
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+
+        // Configurar tamaño del canvas temporal (mayor resolución)
+        tempCanvas.width = originalCanvas.width * 2;  // 2x resolución
+        tempCanvas.height = originalCanvas.height * 2;
+
+        // Fondo blanco
+        tempCtx.fillStyle = '#ffffff';
+        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+        // Escalar y dibujar el gráfico original
+        tempCtx.scale(2, 2);
+        tempCtx.drawImage(originalCanvas, 0, 0);
+
+        // Crear enlace de descarga
         const link = document.createElement('a');
-        link.download = 'ipc_chile_chart.png';
-        link.href = chart.toBase64Image();
+        link.download = `ipc_chile_${new Date().toISOString().split('T')[0]}.png`;
+        link.href = tempCanvas.toDataURL('image/png');
         link.click();
+
+        // Limpiar canvas temporal
+        tempCanvas.remove();
     }
 }
 
