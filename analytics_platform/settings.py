@@ -25,6 +25,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # AGREGAR ESTA LÍNEA
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -85,10 +86,30 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Ruta del archivo
 PARQUET_FILE_PATH = os.path.join(BASE_DIR, 'ipc_data.parquet')
+
+# Configuración específica para Render
+if 'RENDER' in os.environ:
+    DEBUG = False
+    ALLOWED_HOSTS = ['.onrender.com', 'localhost', '127.0.0.1']
+    
+    # Base de datos PostgreSQL de Render
+    import dj_database_url
+    DATABASES = {
+        'default': dj_database_url.parse(os.environ.get('DATABASE_URL'))
+    }
+    
+    # Archivos estáticos para producción
+    STATICFILES_DIRS = []
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+else:
+    # Configuración local (desarrollo)
+    DEBUG = True
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    STATICFILES_DIRS = [BASE_DIR / 'static']
