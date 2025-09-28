@@ -91,8 +91,42 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Ruta del archivo
-PARQUET_FILE_PATH = os.path.join(BASE_DIR, 'ipc_data.parquet')
+# Rutas de archivos de datos
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+PARQUET_DIR = os.path.join(DATA_DIR, 'parquet')
+
+# Archivos Parquet específicos por país/región
+PARQUET_FILES = {
+    'chile': {
+        'ipc': os.path.join(PARQUET_DIR, 'chile', 'ipc_data.parquet'),
+    }
+}
+
+# Compatibilidad con código existente
+PARQUET_FILE_PATH = PARQUET_FILES['chile']['ipc']
+
+# Configuración de caché
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'analytics-cache',
+        'TIMEOUT': 300,  # 5 minutos por defecto
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+        }
+    }
+}
+
+# Configuración de caché específica para producción
+if 'RENDER' in os.environ:
+    # En producción, usar Redis si está disponible
+    REDIS_URL = os.environ.get('REDIS_URL')
+    if REDIS_URL:
+        CACHES['default'] = {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_URL,
+            'TIMEOUT': 300,
+        }
 
 # Configuración específica para Render
 if 'RENDER' in os.environ:
