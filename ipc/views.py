@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.generic import TemplateView
 from django.core.cache import cache
 from django.views.decorators.cache import cache_page
@@ -7,6 +7,8 @@ from django.utils.decorators import method_decorator
 from .models import IPCData
 import json
 import pandas as pd
+import io
+from datetime import datetime
 
 class DashboardView(TemplateView):
     """
@@ -106,19 +108,23 @@ def api_ipc_chart_data(request):
         'datasets': [
             {
                 'label': 'Variación Mensual (%)',
+                'type': 'bar',
                 'data': mensual_data,
+                'backgroundColor': 'rgba(75, 192, 192, 0.7)',
                 'borderColor': 'rgb(75, 192, 192)',
-                'backgroundColor': 'rgba(75, 192, 192, 0.1)',
-                'tension': 0.4,
-                'fill': False
+                'borderWidth': 1,
+                'yAxisID': 'y1'  # Eje derecho
             },
             {
                 'label': 'Variación Anual (%)',
+                'type': 'line',
                 'data': anual_data,
                 'borderColor': 'rgb(255, 99, 132)',
                 'backgroundColor': 'rgba(255, 99, 132, 0.1)',
                 'tension': 0.4,
-                'fill': False
+                'fill': False,
+                'borderWidth': 3,
+                'yAxisID': 'y'  # Eje izquierdo
             }
         ]
     }
@@ -176,3 +182,110 @@ def api_ipc_summary(request):
     cache.set(cache_key, summary, 600)
 
     return JsonResponse(summary)
+
+def api_ipc_export_excel(request):
+    """
+    Exportar todos los datos IPC a Excel
+    """
+    try:
+        # Obtener todos los datos ordenados por fecha
+        queryset = IPCData.objects.all().order_by('-fecha')
+
+        if not queryset.exists():
+            return HttpResponse("No hay datos para exportar", status=404)
+
+        # Convertir a DataFrame
+        data = []
+        for record in queryset:
+            data.append({
+                'Período': record.periodo,
+                'Fecha': record.fecha.strftime('%d/%m/%Y'),
+                'Variación Mensual (%)': float(record.variacion_mensual),
+                'Variación Anual (%)': float(record.variacion_anual),
+                'Fecha Actualización': record.updated_at.strftime('%d/%m/%Y %H:%M')
+            })
+
+        df = pd.DataFrame(data)
+
+        # Crear buffer para el archivo Excel
+        output = io.BytesIO()
+
+        # Crear archivo Excel con múltiples hojas (12 meses por hoja)
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            rows_per_sheet = 12
+            total_rows = len(df)
+            sheet_number = 1
+
+            for start_idx in range(0, total_rows, rows_per_sheet):
+                end_idx = min(start_idx + rows_per_sheet, total_rows)
+                sheet_data = df.iloc[start_idx:end_idx]
+
+                # Nombre de la hoja
+                sheet_name = f'Página {sheet_number}'
+
+                # Escribir datos en la hoja
+                sheet_data.to_excel(writer, sheet_name=sheet_name, index=False)
+
+                # Obtener worksheet para formatear
+                worksheet = writer.sheets[sheet_name]
+
+                # Ajustar ancho de columnas
+                for column in worksheet.columns:
+                    max_length = 0
+                    column = [cell for cell in column]
+                    for cell in column:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)
+                    worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
+
+                sheet_number += 1
+
+            # Hoja resumen
+            summary_data = {
+                'Estadística': [
+                    'Total de Registros',
+                    'Período Más Antiguo',
+                    'Período Más Reciente',
+                    'Promedio Variación Mensual',
+                    'Promedio Variación Anual',
+                    'Máxima Variación Mensual',
+                    'Mínima Variación Mensual',
+                    'Máxima Variación Anual',
+                    'Mínima Variación Anual'
+                ],
+                'Valor': [
+                    len(df),
+                    df.iloc[-1]['Período'],
+                    df.iloc[0]['Período'],
+                    f"{df['Variación Mensual (%)'].mean():.2f}%",
+                    f"{df['Variación Anual (%)'].mean():.2f}%",
+                    f"{df['Variación Mensual (%)'].max():.2f}%",
+                    f"{df['Variación Mensual (%)'].min():.2f}%",
+                    f"{df['Variación Anual (%)'].max():.2f}%",
+                    f"{df['Variación Anual (%)'].min():.2f}%"
+                ]
+            }
+
+            summary_df = pd.DataFrame(summary_data)
+            summary_df.to_excel(writer, sheet_name='Resumen', index=False)
+
+        output.seek(0)
+
+        # Configurar respuesta HTTP
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+        # Nombre del archivo con fecha actual
+        filename = f'datos_ipc_chile_{datetime.now().strftime("%Y%m%d")}.xlsx'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        return response
+
+    except Exception as e:
+        return HttpResponse(f"Error generando Excel: {str(e)}", status=500)

@@ -84,6 +84,10 @@
                     <button class="btn btn-outline-primary btn-sm" onclick="loadChart('all')">
                         Todo el período
                     </button>
+                    <button class="btn btn-success btn-sm" onclick="downloadChart()">
+                        <i class="fas fa-download me-1"></i>
+                        Descargar PNG
+                    </button>
                 </div>
             </div>
             
@@ -150,14 +154,45 @@
     </div>
 </div>
 
-<!-- Tabla de datos recientes -->
+<!-- Tabla de datos con paginación -->
 <div class="row">
     <div class="col-12">
         <div class="chart-container">
-            <h6 class="mb-3">
-                <i class="fas fa-table me-2"></i>
-                Datos Recientes (Últimos 12 meses)
-            </h6>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">
+                    <i class="fas fa-table me-2"></i>
+                    Datos Históricos IPC
+                </h6>
+                <div>
+                    <button class="btn btn-success btn-sm me-2" onclick="downloadExcel()">
+                        <i class="fas fa-file-excel me-1"></i>
+                        Descargar Excel
+                    </button>
+                    <select id="rowsPerPage" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="changeRowsPerPage()">
+                        <option value="12">12 por página</option>
+                        <option value="24">24 por página</option>
+                        <option value="36">36 por página</option>
+                        <option value="60">60 por página</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Controles de paginación superior -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <span id="pageInfo" class="text-muted">Mostrando datos...</span>
+                </div>
+                <div>
+                    <button id="prevPage" class="btn btn-outline-primary btn-sm" onclick="changePage(-1)">
+                        <i class="fas fa-chevron-left"></i> Anterior
+                    </button>
+                    <span id="currentPageDisplay" class="mx-3">Página 1</span>
+                    <button id="nextPage" class="btn btn-outline-primary btn-sm" onclick="changePage(1)">
+                        Siguiente <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
                     <thead class="table-dark">
@@ -168,31 +203,26 @@
                             <th class="text-center">Variación Anual (%)</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {% for record in recent_data %}
-                        <tr>
-                            <td><strong>{{ record.periodo }}</strong></td>
-                            <td>{{ record.fecha|date:"d/m/Y" }}</td>
-                            <td class="text-center">
-                                <span class="badge {% if record.variacion_mensual >= 0 %}bg-success{% else %}bg-danger{% endif %}">
-                                    {{ record.variacion_mensual }}%
-                                </span>
-                            </td>
-                            <td class="text-center">
-                                <span class="badge {% if record.variacion_anual >= 0 %}bg-info{% else %}bg-warning{% endif %}">
-                                    {{ record.variacion_anual }}%
-                                </span>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="4" class="text-center text-muted">
-                                No hay datos disponibles
-                            </td>
-                        </tr>
-                        {% endfor %}
+                    <tbody id="dataTableBody">
+                        <!-- Los datos se cargarán dinámicamente -->
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Controles de paginación inferior -->
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div>
+                    <span id="pageInfoBottom" class="text-muted">Mostrando datos...</span>
+                </div>
+                <div>
+                    <button class="btn btn-outline-primary btn-sm" onclick="changePage(-1)">
+                        <i class="fas fa-chevron-left"></i> Anterior
+                    </button>
+                    <span id="currentPageDisplayBottom" class="mx-3">Página 1</span>
+                    <button class="btn btn-outline-primary btn-sm" onclick="changePage(1)">
+                        Siguiente <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -202,12 +232,17 @@
 {% block scripts %}
 <script>
 let chart = null;
+let allData = [];
+let currentPage = 1;
+let rowsPerPage = 12;
+let totalPages = 1;
 
 // Cargar gráfico al inicializar la página
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Página cargada, iniciando gráfico...');
     loadChart(24); // Cargar últimos 24 meses por defecto
     loadStats(); // Cargar estadísticas
+    loadTableData(); // Cargar datos de la tabla
 });
 
 function loadChart(limit) {
@@ -260,12 +295,12 @@ function createChart(data) {
     }
     
     chart = new Chart(ctx, {
-        type: 'line',
+        type: 'bar',  // Tipo base para gráfico mixto
         data: data,
         options: {
             responsive: true,
             maintainAspectRatio: true,
-            aspectRatio: 3,  // Ratio ancho:alto = 3:1
+            aspectRatio: 3,
             plugins: {
                 title: {
                     display: true,
@@ -280,11 +315,28 @@ function createChart(data) {
             },
             scales: {
                 y: {
-                    beginAtZero: false,
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
                     title: {
                         display: true,
-                        text: 'Variación (%)'
-                    }
+                        text: 'Variación Anual (%)'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Variación Mensual (%)'
+                    },
+                    grid: {
+                        drawOnChartArea: true,
+                    },
                 },
                 x: {
                     title: {
@@ -334,6 +386,118 @@ function loadStats() {
         .catch(error => {
             console.error('Error loading stats:', error);
         });
+}
+
+// Función para descargar gráfico como PNG
+function downloadChart() {
+    if (chart) {
+        const link = document.createElement('a');
+        link.download = 'ipc_chile_chart.png';
+        link.href = chart.toBase64Image();
+        link.click();
+    }
+}
+
+// Cargar datos de la tabla
+function loadTableData() {
+    fetch('/api/ipc/chart/?limit=all')
+        .then(response => response.json())
+        .then(data => {
+            // Convertir datos del gráfico a formato tabla
+            allData = data.labels.map((label, index) => ({
+                periodo: label,
+                mensual: data.datasets[0].data[index],
+                anual: data.datasets[1].data[index]
+            }));
+
+            // Ordenar por período (más reciente primero)
+            allData.reverse();
+
+            calculatePagination();
+            renderTable();
+        })
+        .catch(error => {
+            console.error('Error loading table data:', error);
+        });
+}
+
+function calculatePagination() {
+    totalPages = Math.ceil(allData.length / rowsPerPage);
+    if (currentPage > totalPages) {
+        currentPage = 1;
+    }
+}
+
+function renderTable() {
+    const tbody = document.getElementById('dataTableBody');
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    const pageData = allData.slice(startIndex, endIndex);
+
+    tbody.innerHTML = '';
+
+    pageData.forEach(record => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong>${record.periodo}</strong></td>
+            <td>-</td>
+            <td class="text-center">
+                <span class="badge ${record.mensual >= 0 ? 'bg-success' : 'bg-danger'}">
+                    ${record.mensual}%
+                </span>
+            </td>
+            <td class="text-center">
+                <span class="badge ${record.anual >= 0 ? 'bg-info' : 'bg-warning'}">
+                    ${record.anual}%
+                </span>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+
+    updatePaginationInfo();
+}
+
+function updatePaginationInfo() {
+    const startRecord = (currentPage - 1) * rowsPerPage + 1;
+    const endRecord = Math.min(currentPage * rowsPerPage, allData.length);
+    const info = `Mostrando ${startRecord}-${endRecord} de ${allData.length} registros`;
+
+    document.getElementById('pageInfo').textContent = info;
+    document.getElementById('pageInfoBottom').textContent = info;
+    document.getElementById('currentPageDisplay').textContent = `Página ${currentPage} de ${totalPages}`;
+    document.getElementById('currentPageDisplayBottom').textContent = `Página ${currentPage} de ${totalPages}`;
+
+    // Habilitar/deshabilitar botones
+    const prevButtons = document.querySelectorAll('[onclick="changePage(-1)"]');
+    const nextButtons = document.querySelectorAll('[onclick="changePage(1)"]');
+
+    prevButtons.forEach(btn => btn.disabled = currentPage === 1);
+    nextButtons.forEach(btn => btn.disabled = currentPage === totalPages);
+}
+
+function changePage(direction) {
+    const newPage = currentPage + direction;
+    if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        renderTable();
+    }
+}
+
+function changeRowsPerPage() {
+    rowsPerPage = parseInt(document.getElementById('rowsPerPage').value);
+    currentPage = 1;
+    calculatePagination();
+    renderTable();
+}
+
+// Función para descargar Excel
+function downloadExcel() {
+    // Crear enlace de descarga
+    const link = document.createElement('a');
+    link.href = '/api/ipc/export-excel/';
+    link.download = 'datos_ipc_chile.xlsx';
+    link.click();
 }
 </script>
 {% endblock %}
