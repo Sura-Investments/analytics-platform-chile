@@ -7,21 +7,20 @@ logger = logging.getLogger(__name__)
 
 class IPCDataLoader:
     """
-    Clase para cargar datos desde el Excel a la base de datos
+    Clase para cargar datos desde Parquet a la base de datos
     """
     
     def __init__(self):
         self.parquet_path = settings.PARQUET_FILE_PATH
     
-    def load_data(self, sheet_name='Cuadro'):
+    def load_data(self):
         """
-        Carga datos desde Excel a la base de datos
+        Carga datos desde Parquet a la base de datos
         """
         try:
-            print(f"📁 Leyendo archivo: {self.excel_path}")
-            print(f"📄 Hoja: {sheet_name}")
+            print(f"📁 Leyendo archivo: {self.parquet_path}")
             
-            # Leer Excel
+            # Leer Parquet
             df = pd.read_parquet(self.parquet_path)
             
             print(f"📊 Filas encontradas: {len(df)}")
@@ -103,7 +102,7 @@ class IPCDataLoader:
             return {'created': created_count, 'updated': updated_count, 'errors': error_count}
             
         except FileNotFoundError:
-            print(f"❌ Error: No se encontró el archivo Excel en: {self.excel_path}")
+            print(f"❌ Error: No se encontró el archivo en: {self.parquet_path}")
             print("💡 Verifica que la ruta sea correcta y el archivo exista.")
             return None
             
